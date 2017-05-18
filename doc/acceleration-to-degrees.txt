@@ -1,0 +1,43 @@
+# x y and z are in G (0.0 - 1.0f) in g ( g == 9.8m/s^2);
+local function getX(x,y)
+	local current = 180 - math.deg(math.atan2(x,y))
+	if math.deg(math.atan2(x,y)) < 0 then
+		current = -(180 + math.deg(math.atan2(x,y)))
+	end
+	current = current - offsetX
+	if current < -180 then
+		local rest = current + 180
+		current = 180 + rest
+	elseif current > 180 then
+		local rest = current - 180
+		current = -180 + rest
+	end
+	return current
+
+end
+
+local function getY(y,z)
+	local current = -(90 + math.deg(math.atan2(y,z)))
+	current = current - offsetY
+	if current > 90 then
+		local rest = current - 90
+		current = -270 + rest
+	elseif current <-270 then
+		local rest = current + 270
+		current = 90 + rest
+	end
+	return current
+end
+
+local function getZ(z,x)
+	local current = math.deg(math.atan2(z,x))
+	current = current - offsetZ
+	if current < -180 then
+		local rest = current + 180
+		current = 180 + rest
+	elseif current > 180 then
+		local rest = current - 180
+		current = -180 + rest
+	end
+	return current
+end
