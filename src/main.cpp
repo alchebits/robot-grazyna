@@ -2,14 +2,47 @@
   #include "SPI.h"
   #include "I2Cdev.h"
   #include "MPU6050.h"
+  #include "PID.h"
+  #include <math.h>
 
-  MPU6050 accelgyro;
-  int16_t ax, ay, az;
-  int16_t gx, gy, gz;
+  #define PI 3.14159265
 
+  #define runEvery(t) for (static long _lasttime;\
+                           (uint16_t)((uint16_t)millis() - _lasttime) >= (t);\
+                           _lasttime += (t))
+
+ float Roll, Pitch;
+ float offsetX = 0;
+
+ float getXDegree(float x, float y) // x and y in G (1G = 9.8m/s*2)
+ {
+ 	float current = 180 -(atan2 (y,x) * 180) / PI;
+ 	if((atan2 (y,x) * 180) / PI < 0)
+  {
+    current = -(180 +(atan2 (y,x) * 180) / PI);
+  }
+ 	current = current - offsetX;
+ 	if( current < -180)
+  {
+ 		float rest = current + 180;
+ 		current = 180 + rest;
+  }
+  else if(current > 180)
+  {
+    float rest = current - 180;
+ 		current = -180 + rest;
+  }
+ 	return current;
+ }
+
+  MPU6050 accel;
+  int ax, ay, az;
+  int gx, gy, gz;
+
+  void getGyroValues();
+  void motorControl(double value);
   void setup()
   {
-
     pinMode(3, OUTPUT);
     pinMode(4, OUTPUT);
     pinMode(5, OUTPUT);
@@ -20,20 +53,61 @@
 
     Wire.begin();
     Serial.begin(9600);
-    accelgyro.initialize();
-    accelgyro.setXAccelOffset(-1801);
-    accelgyro.setYAccelOffset(-923);
-    accelgyro.setZAccelOffset(3238);
-    accelgyro.setXGyroOffset(21);
-    accelgyro.setYGyroOffset(-1);
-    accelgyro.setZGyroOffset(31);
+    accel.initialize();
+    accel.setXAccelOffset(-66);
+    accel.setYAccelOffset(-947);
+    accel.setZAccelOffset(1503);
+    accel.setXGyroOffset(31);
+    accel.setYGyroOffset(5);
+    accel.setZGyroOffset(88);
+
   }
 
   void loop()
   {
-    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    runEvery(10){
+      getGyroValues();
+      int sign = (ax > 0) ? 1.0f : -1.0f;
+      double val = Compute( Roll/3*sign );
+      motorControl(val);
+      Serial.println(val);
 
-    if(ay < 0)
+    }
+  }
+
+  void getGyroValues(){
+    accel.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  //  ax += 16384;
+  //  az -= 16384;
+
+    float X = ax / 16384.0f;
+    float Y = ay / 16384.0f;
+    float Z = -az / 16384.0f;
+
+    Roll = atan2( sqrt(Y*Y + X*X), Z) * 180/M_PI;
+    Pitch = atan2( sqrt(X*X + Z*Z), Y) * 180/M_PI;
+
+    // Serial.print(Roll);
+    // Serial.print(" = ");
+    // Serial.print(Pitch);
+    // Serial.println();
+    //
+    // Serial.print(ax);
+    // Serial.print(" | ");
+    // Serial.print(ay);
+    // Serial.print(" | ");
+    // Serial.print(az);
+    // Serial.print(" == ");
+    // Serial.print(gx);
+    // Serial.print(" | ");
+    // Serial.print(gy);
+    // Serial.print(" | ");
+    // Serial.println(gz);
+  }
+
+  void motorControl(double value)
+  {
+    if(value > 0)
     {
       digitalWrite(3, LOW);
       digitalWrite(4, HIGH);
@@ -48,10 +122,7 @@
       digitalWrite(5, HIGH);
     }
 
-      Serial.println(ay);
-
-      analogWrite(9, 200.0f);
-      analogWrite(10,75.0f);
-
-    delay(50);
+    value = max(255, abs(value));
+    analogWrite(9, value); // 0-255 max
+    analogWrite(10, value); // 0-255 max
   }
