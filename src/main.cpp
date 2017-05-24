@@ -5,7 +5,7 @@
   #include "PID.h"
   #include <math.h>
 
-  #define PI 3.14159265
+//  #define PI 3.14159265
 
   #define runEvery(t) for (static long _lasttime;\
                            (uint16_t)((uint16_t)millis() - _lasttime) >= (t);\
@@ -13,27 +13,6 @@
 
  float Roll, Pitch;
  float offsetX = 0;
-
- float getXDegree(float x, float y) // x and y in G (1G = 9.8m/s*2)
- {
- 	float current = 180 -(atan2 (y,x) * 180) / PI;
- 	if((atan2 (y,x) * 180) / PI < 0)
-  {
-    current = -(180 +(atan2 (y,x) * 180) / PI);
-  }
- 	current = current - offsetX;
- 	if( current < -180)
-  {
- 		float rest = current + 180;
- 		current = 180 + rest;
-  }
-  else if(current > 180)
-  {
-    float rest = current - 180;
- 		current = -180 + rest;
-  }
- 	return current;
- }
 
   MPU6050 accel;
   int ax, ay, az;
