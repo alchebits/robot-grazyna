@@ -1,13 +1,16 @@
+#ifndef PID_HEADER_FILE
+#define PID_HEADER_FILE
+
 #include <Arduino.h>
 // PID variables
-int outMax = 255;
-int outMin = -255;
+int outMax = 100;
+int outMin = -100;
 float lastInput = 0;
 double ITerm =0;
 
 // PID constants
 // You can change this values to adjust the control
-double kp = 100;         // Proportional value
+double kp = 30;         // Proportional value
 double ki = 2;           // Integral value
 double kd = 0;           // Derivative value
 
@@ -51,3 +54,5 @@ double GetSetPoint(){
   return Setpoint;
 
 }
+
+#endif
