@@ -5,6 +5,7 @@
 #include <MPU6050.h>
 #include "L298NMotors.hpp"
 #include "Kalman.hpp"
+#include "PID.hpp"
 
 class GrazynaV1
 {
@@ -18,9 +19,11 @@ public:
   static const uint16_t VOLTAGE_CHECK_PIN = A0;
   static const float MIN_SAFE_BATTERY_VOLTAGE;
   static const float MAX_DC_MOTORS_VOLTAGE;
-  static constexpr int16_t ACCELOFFSETS[6] = {-59,     -921,    1497,    70,      -7,      143};
-  static const uint16_t CHECK_BATTERY_STEPS = 50;
-  static const int32_t SENSOR_READ_MEAN_COUNTER = 5;
+  // static constexpr int16_t ACCELOFFSETS[6] = {-59,     -921,    1497,    70,      -7,      143};
+  static constexpr int16_t ACCELOFFSETS[6] = {-80 ,    -898  , 1508   , 68     , -5     , 144};
+
+  static const uint16_t CHECK_BATTERY_STEPS = 200;
+  static const int32_t SENSOR_READ_MEAN_COUNTER = 1;
   static const uint8_t GRAZYNA_MPU6050_GYRO_FS = MPU6050_GYRO_FS_250;
   static const uint8_t GRAZYNA_MPU6050_ACCEL_FS = MPU6050_ACCEL_FS_2;
 public:
@@ -35,6 +38,7 @@ protected:
   void filterSensorValues();
   void pwmCalculatePID();
   void motorsControl();
+  void tuning();
 
   float getBatteryVoltage() const;
   uint16_t mapPercentForMaxVoltage(unsigned percent, float maxDCVoltage, float batteryVoltage) const;
@@ -46,7 +50,7 @@ protected:
   MPU6050 accel;
   L298NMotors m_motors;
   Kalman m_kalman;
-
+  PID m_pid;
 
   int32_t m_ax, m_ay, m_az;
   int32_t m_gx, m_gy, m_gz;
@@ -60,6 +64,12 @@ protected:
   bool m_isOFF;
   int16_t m_checkVoltageCounter;
   uint16_t m_sensorReadCounter;
+  int m_leftMotorSpeed;
+  int m_rightMotorSpeed;
+
+  // adjustables
+  int m_kp, m_ki, m_kd, m_divider, m_loopMs;
+  float m_targetAngle;
 };
 
 
