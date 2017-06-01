@@ -19,7 +19,7 @@ public:
 protected:
   float Kp, Ki, Kd; // K = return value scaled
   float pTerm, iTerm, dTerm;
-  float error, integrated_error, last_error;
+  float error, last_error;
   float m_integralMin, m_integralMax;
 };
 

@@ -11,7 +11,7 @@ PID(0,0,0,-1000,1000)
 PID::PID(float kp, float ki, float kd, float integral_min, float integral_max) :
 Kp(kp), Ki(ki), Kd(kd),
 pTerm(0), iTerm(0), dTerm(0),
-error(0), integrated_error(0), last_error(0),
+error(0), last_error(0),
 m_integralMin(integral_min), m_integralMax(integral_max)
 {
 }
@@ -24,9 +24,8 @@ float PID::step(float targetPosition, float currentPosition)
 {
  error = targetPosition - currentPosition;
  pTerm = Kp * error;
- integrated_error += error;
- integrated_error = constrain(integrated_error, m_integralMin, m_integralMax); // cap
- iTerm = Ki * integrated_error;
+ iTerm += Ki * error;
+ iTerm = constrain(iTerm, m_integralMin, m_integralMax);
  dTerm = Kd * (error - last_error);
  last_error = error;
  return (pTerm + iTerm + dTerm);

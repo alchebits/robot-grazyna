@@ -9,12 +9,12 @@ const float GrazynaV1::MIN_SAFE_BATTERY_VOLTAGE = 6.4f;
 const float GrazynaV1::MAX_DC_MOTORS_VOLTAGE = 6.0f;
 GrazynaV1::GrazynaV1() :
 m_motors(L1_PIN, L2_PIN, R1_PIN, R2_PIN, LPWM_PIN, RPWM_PIN),
-m_pid(1,1,1,-50, 50),
+m_pid(1,1,1,-200, 200),
 m_batteryVoltage(0),
 m_isOFF(false),
 m_checkVoltageCounter(0),
 m_sensorReadCounter(0),
-m_kp(10), m_ki(3), m_kd(3), m_divider(2), m_loopMs(1),
+m_kp(20), m_ki(2), m_kd(5), m_divider(1), m_loopMs(10),
 m_targetAngle(0.0f)
 {
 }
@@ -70,12 +70,12 @@ void GrazynaV1::loop()
       // Serial.print(" ");
       // Serial.print(m_pid.getDTerm());
       // Serial.print(" ");
-      //
-      // //printRawSensorValues();
       // Serial.print(m_accAngle);
       // Serial.print(" ");
       // Serial.print(m_filteredAccAngle);
       // Serial.println();
+      // //printRawSensorValues();
+
   }
 }
 

@@ -10,12 +10,12 @@
 class GrazynaV1
 {
 public:
-  static const uint16_t L1_PIN = 3;
-  static const uint16_t L2_PIN = 4;
+  static const uint16_t L1_PIN = 7;
+  static const uint16_t L2_PIN = 8;
   static const uint16_t R1_PIN = 5;
   static const uint16_t R2_PIN = 6;
-  static const uint16_t LPWM_PIN = 9;
-  static const uint16_t RPWM_PIN = 10;
+  static const uint16_t LPWM_PIN = 3;
+  static const uint16_t RPWM_PIN = 11;
   static const uint16_t VOLTAGE_CHECK_PIN = A0;
   static const float MIN_SAFE_BATTERY_VOLTAGE;
   static const float MAX_DC_MOTORS_VOLTAGE;
