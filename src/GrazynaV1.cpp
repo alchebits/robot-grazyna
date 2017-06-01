@@ -7,6 +7,7 @@
 
 const float GrazynaV1::MIN_SAFE_BATTERY_VOLTAGE = 6.4f;
 const float GrazynaV1::MAX_DC_MOTORS_VOLTAGE = 6.0f;
+const float GrazynaV1::DEFAULT_TARGET_ANGLE = 0.0f;
 GrazynaV1::GrazynaV1() :
 m_motors(L1_PIN, L2_PIN, R1_PIN, R2_PIN, LPWM_PIN, RPWM_PIN),
 m_pid(1,1,1,-200, 200),
@@ -15,7 +16,7 @@ m_isOFF(false),
 m_checkVoltageCounter(0),
 m_sensorReadCounter(0),
 m_kp(20), m_ki(2), m_kd(5), m_divider(1), m_loopMs(10),
-m_targetAngle(0.0f)
+m_targetAngle(DEFAULT_TARGET_ANGLE)
 {
 }
 
@@ -38,13 +39,14 @@ void GrazynaV1::setup()
   accel.setYGyroOffset(ACCELOFFSETS[4]);
   accel.setZGyroOffset(ACCELOFFSETS[5]);
 
+  m_rcSwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
+
   m_batteryVoltage = getBatteryVoltage();
-  m_lastMillis = millis();
+  m_RFControlTimestampMs = m_lastMillis = millis();
 }
 
 void GrazynaV1::loop()
 {
-
     runEvery(m_loopMs){
       if( (++m_checkVoltageCounter % CHECK_BATTERY_STEPS) == 0)
       {
@@ -61,8 +63,8 @@ void GrazynaV1::loop()
         Serial.println("isOff");
         Serial.println(m_batteryVoltage);
       }
-
-      tuning();
+      rf433mhzControl();
+      //tuning();
 
       // Serial.print(m_pid.getPTerm());
       // Serial.print(" ");
@@ -139,7 +141,7 @@ void GrazynaV1::pwmCalculatePID()
     m_leftMotorSpeed = speed;
     m_rightMotorSpeed = speed;
 
-    if(abs(m_filteredAccAngle) > 30){
+    if(abs(m_filteredAccAngle) > 50){
       m_leftMotorSpeed = 0;
       m_rightMotorSpeed = 0;
     }
@@ -174,6 +176,48 @@ void GrazynaV1::motorsControl()
 
   m_motors.setLeftSpeed(leftSpeedPercent);
   m_motors.setRightSpeed(rightSpeedPercent);
+}
+
+void GrazynaV1::rf433mhzControl()
+{
+  if (m_rcSwitch.available())
+  {
+    uint32_t value = m_rcSwitch.getReceivedValue();
+    Serial.println( value);
+    if (value == 0) {
+      Serial.print("Unknown encoding");
+    } else {
+      switch(value)
+      {
+        case RF_A_VALUE:
+            m_RFControlTimestampMs = m_lastMillis;
+            m_targetAngle = 1.0f;
+            Serial.println("Received AAA: ");
+        break;
+        case RF_B_VALUE:
+            m_RFControlTimestampMs = m_lastMillis;
+            m_targetAngle = -1.0f;
+            Serial.println("Received BBB: ");
+        break;
+        case RF_C_VALUE:
+            m_RFControlTimestampMs = m_lastMillis;
+        break;
+        case RF_D_VALUE:
+            m_RFControlTimestampMs = m_lastMillis;
+        break;
+        default:
+        break;
+      }
+      Serial.print( m_rcSwitch.getReceivedValue() );
+    }
+    m_rcSwitch.resetAvailable();
+  }else{
+    if((m_lastMillis - m_RFControlTimestampMs) > RF_CONTROL_OFF_DELAY_MS)
+    {
+      m_targetAngle = DEFAULT_TARGET_ANGLE;
+      Serial.println("TurnOffRFControl");
+    }
+  }
 }
 
 void GrazynaV1::tuning()
