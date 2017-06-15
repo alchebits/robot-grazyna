@@ -6,7 +6,8 @@
 #include "L298NMotors.hpp"
 #include "Kalman.hpp"
 #include "PID.hpp"
-#include <RCSwitch.h>
+#include "Bluetooth.hpp"
+
 
 class GrazynaV1
 {
@@ -16,7 +17,9 @@ public:
   static const uint16_t R1_PIN = 5;
   static const uint16_t R2_PIN = 6;
   static const uint16_t LPWM_PIN = 3;
-  static const uint16_t RPWM_PIN = 11;
+  static const uint16_t RPWM_PIN = 4;
+  static const uint16_t BLUETOOTH_RX_PIN = 11;
+  static const uint16_t BLUETOOTH_TX_PIN = 10;
 
   static const uint16_t VOLTAGE_CHECK_PIN = A0;
   static const float MIN_SAFE_BATTERY_VOLTAGE;
@@ -31,13 +34,7 @@ public:
 
   static const float DEFAULT_TARGET_ANGLE;
 
-  static const uint32_t RF_A_VALUE = 5592332;
-  static const uint32_t RF_B_VALUE = 5592512;
-  static const uint32_t RF_C_VALUE = 5592323;
-  static const uint32_t RF_D_VALUE = 5592368;
-  static const uint16_t RCSWITCH_ENABLE_VALUE = 0;
-  static const uint16_t RF_RECIEVER_PIN = 2; // interrupt
-  static const uint32_t RF_CONTROL_OFF_DELAY_MS = 200;
+  static const int BLUETOOT_TRANSFER_DELAY_MS = 200;
 
 public:
   GrazynaV1();
@@ -51,8 +48,7 @@ protected:
   void filterSensorValues();
   void pwmCalculatePID();
   void motorsControl();
-  void rf433mhzControl();
-  void tuning();
+  void bluetoothCommunication();
 
   float getBatteryVoltage() const;
   uint16_t mapPercentForMaxVoltage(unsigned percent, float maxDCVoltage, float batteryVoltage) const;
@@ -65,7 +61,7 @@ protected:
   L298NMotors m_motors;
   Kalman m_kalman;
   PID m_pid;
-  RCSwitch m_rcSwitch;
+  Bluetooth m_bluetooth;
 
   int32_t m_ax, m_ay, m_az;
   int32_t m_gx, m_gy, m_gz;
@@ -74,17 +70,17 @@ protected:
   float m_roll, m_pitch;
   float m_accAngle, m_gyroRate;
   float m_filteredAccAngle;
-  uint64_t m_lastMillis, m_tmpMillis;
+  uint64_t m_lastMillis, m_tmpMillis, m_btLastMillis;
   float m_batteryVoltage;
   bool m_isOFF;
   int16_t m_checkVoltageCounter;
   uint16_t m_sensorReadCounter;
   int m_leftMotorSpeed;
   int m_rightMotorSpeed;
-  uint64_t m_RFControlTimestampMs;
 
   // adjustables
-  int m_kp, m_ki, m_kd, m_divider, m_loopMs;
+  int m_kp, m_ki, m_kd, m_divider;
+  uint16_t m_loopMs;
   float m_targetAngle;
 };
 

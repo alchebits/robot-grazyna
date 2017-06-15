@@ -11,6 +11,7 @@ const float GrazynaV1::DEFAULT_TARGET_ANGLE = 0.0f;
 GrazynaV1::GrazynaV1() :
 m_motors(L1_PIN, L2_PIN, R1_PIN, R2_PIN, LPWM_PIN, RPWM_PIN),
 m_pid(1,1,1,-200, 200),
+m_bluetooth(BLUETOOTH_RX_PIN, BLUETOOTH_TX_PIN, Bluetooth::SERIAL_TYPE::SERIAL_TYPE_SERIAL_SOFTWARE),
 m_batteryVoltage(0),
 m_isOFF(false),
 m_checkVoltageCounter(0),
@@ -39,10 +40,8 @@ void GrazynaV1::setup()
   accel.setYGyroOffset(ACCELOFFSETS[4]);
   accel.setZGyroOffset(ACCELOFFSETS[5]);
 
-  m_rcSwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
-
   m_batteryVoltage = getBatteryVoltage();
-  m_RFControlTimestampMs = m_lastMillis = millis();
+  m_btLastMillis = m_lastMillis = millis();
 }
 
 void GrazynaV1::loop()
@@ -56,15 +55,12 @@ void GrazynaV1::loop()
       calculateSensorValues();
       filterSensorValues();
       pwmCalculatePID();
+      bluetoothCommunication();
       if(m_batteryVoltage > MIN_SAFE_BATTERY_VOLTAGE){
         motorsControl();
       }else{
         turnOFF();
-        Serial.println("isOff");
-        Serial.println(m_batteryVoltage);
       }
-      rf433mhzControl();
-      //tuning();
 
       // Serial.print(m_pid.getPTerm());
       // Serial.print(" ");
@@ -77,7 +73,6 @@ void GrazynaV1::loop()
       // Serial.print(m_filteredAccAngle);
       // Serial.println();
       // //printRawSensorValues();
-
   }
 }
 
@@ -178,118 +173,45 @@ void GrazynaV1::motorsControl()
   m_motors.setRightSpeed(rightSpeedPercent);
 }
 
-void GrazynaV1::rf433mhzControl()
+void GrazynaV1::bluetoothCommunication()
 {
-  if (m_rcSwitch.available())
+  while(m_bluetooth.hasNextCommand())
   {
-    uint32_t value = m_rcSwitch.getReceivedValue();
-    Serial.println( value);
-    if (value == 0) {
-      Serial.print("Unknown encoding");
-    } else {
-      switch(value)
-      {
-        case RF_A_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-            m_targetAngle = 1.0f;
-            Serial.println("Received AAA: ");
-        break;
-        case RF_B_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-            m_targetAngle = -1.0f;
-            Serial.println("Received BBB: ");
-        break;
-        case RF_C_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-        break;
-        case RF_D_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-        break;
-        default:
-        break;
-      }
-      Serial.print( m_rcSwitch.getReceivedValue() );
-    }
-    m_rcSwitch.resetAvailable();
-  }else{
-    if((m_lastMillis - m_RFControlTimestampMs) > RF_CONTROL_OFF_DELAY_MS)
+    ControlCommand nextCommand = m_bluetooth.getNextCommand();
+    switch(nextCommand.getCommand())
     {
-      m_targetAngle = DEFAULT_TARGET_ANGLE;
-      Serial.println("TurnOffRFControl");
+      case ControlCommand::CALIBRATION_ON:
+        m_bluetooth.setCalibration(true);
+      break;
+      case ControlCommand::CALIBRATION_OFF:
+        m_bluetooth.setCalibration(false);
+      break;
+      default:
+      break;
     }
   }
-}
 
-void GrazynaV1::tuning()
-{
- if(!Serial.available())    return ;
- delay(10);
- char param = Serial.read();                            // get parameter byte
- if(!Serial.available())    return ;
- char cmd = Serial.read();                              // get command byte
- Serial.flush();
- switch (param) {
-   case 'q':
-     if(cmd=='+')    m_kp++;
-     if(cmd=='-')    m_kp--;
-     break;
-   case 'w':
-     if(cmd=='+')    m_ki++;
-     if(cmd=='-')    m_ki--;
-     break;
-   case 'e':
-     if(cmd=='+')    m_kd++;
-     if(cmd=='-')    m_kd--;
-     break;
-   case 'r':
-     if(cmd=='+')    m_divider++;
-     if(cmd=='-')    m_divider--;
-     break;
-   case 't':
-     if(cmd=='+')    m_targetAngle += 0.1f;
-     if(cmd=='-')    m_targetAngle -= 0.1f;
-     break;
-   case 'y':
-     if(cmd=='+')    m_loopMs++;
-     if(cmd=='-')    m_loopMs--;
-     break;
-     case 'a':
-       if(cmd=='+')    m_kp+=10;
-       if(cmd=='-')    m_kp-=10;
-       break;
-     case 's':
-       if(cmd=='+')    m_ki+=10;
-       if(cmd=='-')    m_ki-=10;
-       break;
-     case 'd':
-       if(cmd=='+')    m_kd+=10;
-       if(cmd=='-')    m_kd-=10;
-       break;
-     case 'f':
-       if(cmd=='+')    m_divider+=10;
-       if(cmd=='-')    m_divider-=10;
-       break;
-     case 'g':
-       if(cmd=='+')    m_targetAngle+=1.0f;
-       if(cmd=='-')    m_targetAngle-=1.0f;
-       break;
-     case 'h':
-       if(cmd=='+')    m_loopMs+=10;
-       if(cmd=='-')    m_loopMs-=10;
-       break;
-   default:
-     Serial.print("?");           Serial.print(param);
-     Serial.print(" ?");          Serial.println(cmd);
-   }
+  if(m_bluetooth.isCalibrationOn())
+  {
+      if(m_lastMillis - m_btLastMillis > BLUETOOT_TRANSFER_DELAY_MS){
+        m_btLastMillis = m_lastMillis;
+        static char buffer[128];
+        sprintf(buffer,"%s=%d,%d,%d,%d,%d,%d,%d%s",
+            Bluetooth::BT_TANS_CALIB_DATA_CMD,
+            m_kp,
+            m_ki,
+            m_kd,
+            m_divider,
+            (int)m_pid.getPTerm(),
+            (int)m_pid.getITerm(),
+            (int)m_pid.getDTerm(),
+            Bluetooth::COMM_DELIMETER);
 
- Serial.println();
- Serial.print("    Kp:");       Serial.print(m_kp);
- Serial.print("    Ki:");       Serial.print(m_ki);
- Serial.print("    Kd:");       Serial.print(m_kd);
- Serial.print("   div:");       Serial.print(m_divider);
- Serial.print("target:");       Serial.print(m_targetAngle);
- Serial.print("loopms:");       Serial.println(m_loopMs);
-
+        m_bluetooth.addTranserData(buffer);
+    }
+  }
+  m_bluetooth.recieve();
+  m_bluetooth.transfer();
 }
 
 float GrazynaV1::getBatteryVoltage() const
