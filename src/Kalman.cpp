@@ -1,43 +1,45 @@
 #include "Kalman.hpp"
-#include <math.h>
 
-Kalman::Kalman() :
-Q_angle(0.001),
-Q_gyro(0.003),
-R_angle(0.03),
-x_angle(0),
-x_bias(0),
-P_00(0),
-P_01(0),
-P_10(0),
-P_11(0)
-{
+Kalman::Kalman(double process_noise, double sensor_noise, double estimated_error, double intial_value) {
+    this->q = process_noise;
+    this->r = sensor_noise;
+    this->p = estimated_error;
+    this->x = intial_value; //x will hold the iterated filtered value
 }
 
-Kalman::~Kalman()
-{
+double Kalman::getFilteredValue(double measurement) {
+  /* Updates and gets the current measurement value */
+  //prediction update
+  //omit x = x
+  this->p = this->p + this->q;
 
+  //measurement update
+  this->k = this->p / (this->p + this->r);
+  this->x = this->x + this->k * (measurement - this->x);
+  this->p = (1 - this->k) * this->p;
+
+  return this->x;
 }
 
- float Kalman::calculate(float newAngle, float newRate,int looptime) {
-   dt = float(looptime)/1000;
-   x_angle += dt * (newRate - x_bias);
-   P_00 +=  - dt * (P_10 + P_01) + Q_angle * dt;
-   P_01 +=  - dt * P_11;
-   P_10 +=  - dt * P_11;
-   P_11 +=  + Q_gyro * dt;
+void Kalman::setParameters(double process_noise, double sensor_noise, double estimated_error) {
+    this->q = process_noise;
+    this->r = sensor_noise;
+    this->p = estimated_error;
+}
 
-   y = newAngle - x_angle;
-   S = P_00 + R_angle;
-   K_0 = P_00 / S;
-   K_1 = P_10 / S;
+void Kalman::setParameters(double process_noise, double sensor_noise) {
+    this->q = process_noise;
+    this->r = sensor_noise;
+}
 
-   x_angle +=  K_0 * y;
-   x_bias  +=  K_1 * y;
-   P_00 -= K_0 * P_00;
-   P_01 -= K_0 * P_01;
-   P_10 -= K_1 * P_00;
-   P_11 -= K_1 * P_01;
+double Kalman::getProcessNoise() {
+  return this->q;
+}
 
-   return x_angle;
- }
+double Kalman::getSensorNoise() {
+  return this->r;
+}
+
+double Kalman::getEstimatedError() {
+  return this->p;
+}

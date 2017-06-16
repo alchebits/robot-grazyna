@@ -18,6 +18,9 @@ m_sensorReadCounter(0),
 m_kp(20), m_ki(2), m_kd(5), m_divider(1), m_loopMs(10),
 m_targetAngle(DEFAULT_TARGET_ANGLE)
 {
+  m_rfControlDelay = 0;
+  m_leftMotorLocked = false;
+  m_rightMotorLocked = false;
 }
 
 GrazynaV1::~GrazynaV1()
@@ -42,7 +45,6 @@ void GrazynaV1::setup()
   m_rcSwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
 
   m_batteryVoltage = getBatteryVoltage();
-  m_RFControlTimestampMs = m_lastMillis = millis();
 }
 
 void GrazynaV1::loop()
@@ -53,18 +55,20 @@ void GrazynaV1::loop()
         m_batteryVoltage = getBatteryVoltage();
       }
       getSensorValues();
+      calcLoopTime();
       calculateSensorValues();
       filterSensorValues();
       pwmCalculatePID();
+      calculateVelocityX();
       if(m_batteryVoltage > MIN_SAFE_BATTERY_VOLTAGE){
         motorsControl();
       }else{
         turnOFF();
-        Serial.println("isOff");
-        Serial.println(m_batteryVoltage);
+        // Serial.println("isOff");
+        // Serial.println(m_batteryVoltage);
       }
       rf433mhzControl();
-      //tuning();
+      // tuning();
 
       // Serial.print(m_pid.getPTerm());
       // Serial.print(" ");
@@ -77,7 +81,6 @@ void GrazynaV1::loop()
       // Serial.print(m_filteredAccAngle);
       // Serial.println();
       // //printRawSensorValues();
-
   }
 }
 
@@ -103,15 +106,22 @@ void GrazynaV1::getSensorValues(){
     m_buffAX = m_buffAY = m_buffAZ = m_buffGX = m_buffGY = m_buffGZ = 0;
 }
 
+void GrazynaV1::calcLoopTime()
+{
+  m_tmpMillis = millis();
+  m_loopTimeMs = m_tmpMillis - m_lastMillis;
+  m_lastMillis = m_tmpMillis;
+}
+
 void GrazynaV1::calculateSensorValues()
 {
   float accRes = getAccRes(GRAZYNA_MPU6050_ACCEL_FS);
   float xG = m_ax * accRes;  // 1G value == 9.8 m/sec^2
-  float yG = m_ay * accRes;  // 1G value == 9.8 m/sec^2
+  //float yG = m_ay * accRes;  // 1G value == 9.8 m/sec^2
   float zG = m_az * accRes;  // 1G value == 9.8 m/sec^2
 
-  m_roll = atan2( sqrt(xG*xG + yG*yG), zG) * 180/M_PI; // lewo prawo 0 to gora
-  m_pitch = atan2( sqrt(yG*yG + zG*zG), xG) * 180/M_PI; // przod tyl 90 to gora
+  //m_roll = atan2( sqrt(xG*xG + yG*yG), zG) * 180/M_PI; // lewo prawo 0 to gora
+  //m_pitch = atan2( sqrt(yG*yG + zG*zG), xG) * 180/M_PI; // przod tyl 90 to gora
 
   float gyroRes = getGyroRes(GRAZYNA_MPU6050_GYRO_FS);
   float degPerSecY = m_gy * gyroRes;
@@ -122,11 +132,7 @@ void GrazynaV1::calculateSensorValues()
 
 void GrazynaV1::filterSensorValues()
 {
-  m_tmpMillis = millis();
-  uint32_t deltaMillis = m_tmpMillis - m_lastMillis;
-  m_lastMillis = m_tmpMillis;
-
-  m_filteredAccAngle = m_kalman.calculate(m_accAngle, m_gyroRate, deltaMillis);
+  m_filteredAccAngle = m_kalman.calculate(m_accAngle, m_gyroRate, m_loopTimeMs);
 }
 
 void GrazynaV1::pwmCalculatePID()
@@ -147,35 +153,48 @@ void GrazynaV1::pwmCalculatePID()
     }
 }
 
+void GrazynaV1::calculateVelocityX()
+{
+  float accRes = getAccRes(GRAZYNA_MPU6050_ACCEL_FS);
+  float xMsSquared = (m_ax * accRes) * 9.8f;  // 1G value == 9.8 m/sec^2
+  m_velocity.step(xMsSquared, m_loopTimeMs);
+  //Serial.println(m_velocity.getVelocity());
+}
+
 void GrazynaV1::motorsControl()
 {
   unsigned leftSpeedPercent = mapPercentForMaxVoltage(abs(m_leftMotorSpeed), MAX_DC_MOTORS_VOLTAGE, m_batteryVoltage);
   unsigned rightSpeedPercent = mapPercentForMaxVoltage(abs(m_rightMotorSpeed), MAX_DC_MOTORS_VOLTAGE, m_batteryVoltage);
   //Serial.println(leftSpeedPercent);
-  if(m_leftMotorSpeed >= 0)
+
+  if(!m_leftMotorLocked)
   {
-    if(m_leftMotorSpeed == 0)
-      m_motors.leftStop();
-    else
-      m_motors.leftBackward();
-  }
-  else{
-    m_motors.leftForward();
+    if(m_leftMotorSpeed >= 0)
+    {
+      if(m_leftMotorSpeed == 0)
+        m_motors.leftStop();
+      else
+        m_motors.leftBackward();
+    }
+    else{
+      m_motors.leftForward();
+    }
+    m_motors.setLeftSpeed(leftSpeedPercent);
   }
 
-  if(m_rightMotorSpeed >= 0)
-  {
-    if(m_rightMotorSpeed == 0)
-      m_motors.rightStop();
-    else
-      m_motors.rightBackward();
+  if(!m_rightMotorLocked){
+    if(m_rightMotorSpeed >= 0)
+    {
+      if(m_rightMotorSpeed == 0)
+        m_motors.rightStop();
+      else
+        m_motors.rightBackward();
+    }
+    else{
+      m_motors.rightForward();
+    }
+    m_motors.setRightSpeed(rightSpeedPercent);
   }
-  else{
-    m_motors.rightForward();
-  }
-
-  m_motors.setLeftSpeed(leftSpeedPercent);
-  m_motors.setRightSpeed(rightSpeedPercent);
 }
 
 void GrazynaV1::rf433mhzControl()
@@ -190,32 +209,37 @@ void GrazynaV1::rf433mhzControl()
       switch(value)
       {
         case RF_A_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-            m_targetAngle = 1.0f;
-            Serial.println("Received AAA: ");
+            m_targetAngle = 2.0f;
+            //Serial.println("Received AAA: ");
         break;
         case RF_B_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
-            m_targetAngle = -1.0f;
-            Serial.println("Received BBB: ");
+            m_targetAngle = -2.0f;
+            //Serial.println("Received BBB: ");
         break;
         case RF_C_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
+          m_leftMotorLocked = true;
+          m_motors.leftForward();
+          m_motors.setLeftSpeed(mapPercentForMaxVoltage(40, MAX_DC_MOTORS_VOLTAGE, m_batteryVoltage));
         break;
         case RF_D_VALUE:
-            m_RFControlTimestampMs = m_lastMillis;
+          m_rightMotorLocked = true;
+          m_motors.rightForward();
+          m_motors.setRightSpeed(mapPercentForMaxVoltage(40, MAX_DC_MOTORS_VOLTAGE, m_batteryVoltage));
         break;
         default:
         break;
       }
+      m_rfControlDelay = 0;
       Serial.print( m_rcSwitch.getReceivedValue() );
     }
     m_rcSwitch.resetAvailable();
   }else{
-    if((m_lastMillis - m_RFControlTimestampMs) > RF_CONTROL_OFF_DELAY_MS)
+    m_rfControlDelay += m_loopTimeMs;
+    if(m_rfControlDelay > RF_CONTROL_OFF_DELAY_MS)
     {
       m_targetAngle = DEFAULT_TARGET_ANGLE;
-      Serial.println("TurnOffRFControl");
+      m_leftMotorLocked = false;
+      m_rightMotorLocked = false;
     }
   }
 }

@@ -4,8 +4,9 @@
 #include <Arduino.h>
 #include <MPU6050.h>
 #include "L298NMotors.hpp"
-#include "Kalman.hpp"
+#include "KalmanAngle.hpp"
 #include "PID.hpp"
+#include "Velocity.hpp"
 #include <RCSwitch.h>
 
 class GrazynaV1
@@ -37,7 +38,7 @@ public:
   static const uint32_t RF_D_VALUE = 5592368;
   static const uint16_t RCSWITCH_ENABLE_VALUE = 0;
   static const uint16_t RF_RECIEVER_PIN = 2; // interrupt
-  static const uint32_t RF_CONTROL_OFF_DELAY_MS = 200;
+  static const uint32_t RF_CONTROL_OFF_DELAY_MS = 400;
 
 public:
   GrazynaV1();
@@ -47,9 +48,11 @@ public:
   void loop();
 protected:
   void getSensorValues();
+  void calcLoopTime();
   void calculateSensorValues();
   void filterSensorValues();
   void pwmCalculatePID();
+  void calculateVelocityX();
   void motorsControl();
   void rf433mhzControl();
   void tuning();
@@ -63,9 +66,11 @@ protected:
 protected:
   MPU6050 accel;
   L298NMotors m_motors;
-  Kalman m_kalman;
+  KalmanAngle m_kalman;
   PID m_pid;
+  Velocity m_velocity;
   RCSwitch m_rcSwitch;
+
 
   int32_t m_ax, m_ay, m_az;
   int32_t m_gx, m_gy, m_gz;
@@ -74,14 +79,16 @@ protected:
   float m_roll, m_pitch;
   float m_accAngle, m_gyroRate;
   float m_filteredAccAngle;
-  uint64_t m_lastMillis, m_tmpMillis;
+  uint64_t m_lastMillis, m_tmpMillis, m_loopTimeMs;
   float m_batteryVoltage;
   bool m_isOFF;
   int16_t m_checkVoltageCounter;
   uint16_t m_sensorReadCounter;
   int m_leftMotorSpeed;
   int m_rightMotorSpeed;
-  uint64_t m_RFControlTimestampMs;
+  uint64_t m_rfControlDelay;
+  bool m_leftMotorLocked;
+  bool m_rightMotorLocked;
 
   // adjustables
   int m_kp, m_ki, m_kd, m_divider, m_loopMs;
